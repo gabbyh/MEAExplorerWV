@@ -145,7 +145,7 @@ namespace PluginSystem
         // count all vertices in the lod (simple sum of vertices in sections)
         public int GetLODTotalVertCount()
         {
-            return sections.Sum(s => s.vertices.Count);
+            return sections.Sum(s => (int)s.vertCount);
         }
         // end added
 

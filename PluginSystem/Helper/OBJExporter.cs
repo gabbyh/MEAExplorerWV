@@ -9,13 +9,17 @@ namespace PluginSystem
 {
     public class OBJExporter : IMeshExporter
     {
-        public void ExportLod(MeshAsset mesh, int lodIndex, string targetFile)
+        private float exportScale = 1.0f;
+
+        public void ExportLod(MeshAsset mesh, int lodIndex, string targetFile, float scale = 1.0f)
         {
+            exportScale = scale;
             byte[] data = ExportAsObj(mesh, mesh.lods[lodIndex]);
             File.WriteAllBytes(targetFile, data);
         }
-        public void ExportAllLods(MeshAsset mesh, string targetdir)
+        public void ExportAllLods(MeshAsset mesh, string targetdir, float scale = 1.0f)
         {
+            exportScale = scale;
             foreach (MeshLOD lod in mesh.lods)
             {
                 string targetFile = Path.Combine(targetdir, lod.shortName + ".obj");
@@ -24,6 +28,11 @@ namespace PluginSystem
             }
         }
 
+        public void ExportLodWithMorph(MeshAsset mesh, int lodIndex, MorphStaticAsset morph, string targetfile, float scale = 1.0f, bool bake=false)
+        {
+            morph.ApplyMorphToMesh(mesh);
+            ExportLod(mesh, lodIndex, targetfile, scale);
+        }
 
         ///
         private byte[] ExportAsObj(MeshAsset mesh, MeshLOD lod)
@@ -44,7 +53,7 @@ namespace PluginSystem
             return convertToOBJ(mesh.header.shortName, subMeshNames, verts, uvcords, indices);
         }
 
-        private static float[] GetVerticesPositionsArray(List<Vertex> vertices)
+        private float[] GetVerticesPositionsArray(List<Vertex> vertices)
         {
             float[] verts = new float[vertices.Count * 3];
             int index = 0;
@@ -52,9 +61,9 @@ namespace PluginSystem
             {
                 if (v.position.members.Length == 3)
                 {
-                    verts[index] = v.position.members[0];
-                    verts[index + 1] = v.position.members[1];
-                    verts[index + 2] = v.position.members[2];
+                    verts[index] = v.position.members[0] * exportScale;
+                    verts[index + 1] = v.position.members[1] * exportScale;
+                    verts[index + 2] = v.position.members[2] * exportScale;
                 }
                 index = index + 3;
             }

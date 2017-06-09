@@ -349,6 +349,7 @@ namespace FBXWrapper {
 			FBXShape(FbxShape* s);
 			void InitControlPoints(int n);
 			List<FBXVector4^>^ GetControlPoints();
+			void SetControlPoints(List<FBXVector4^>^ points);
 			static FBXShape^ Create(FBXScene^ scene, String^ name);
 	};
 

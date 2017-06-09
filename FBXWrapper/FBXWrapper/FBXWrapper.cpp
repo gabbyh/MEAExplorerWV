@@ -224,6 +224,7 @@ FBXWrapper::FBXNode^ FBXWrapper::FBXNode::FindChild(String^ name)
 {
 	IntPtr ptrToNativeString = Marshal::StringToHGlobalAnsi(name);
 	const char* lBoneName = static_cast<char*>(ptrToNativeString.ToPointer());
+	fbxsdk::FbxNode* aNode = node->FindChild(lBoneName);
 	FBXNode^ result = gcnew FBXNode(node->FindChild(lBoneName));	
 	Marshal::FreeHGlobal(ptrToNativeString);
 	return result;
@@ -231,7 +232,12 @@ FBXWrapper::FBXNode^ FBXWrapper::FBXNode::FindChild(String^ name)
 
 FBXWrapper::FBXNode^ FBXWrapper::FBXNode::GetParent()
 {	
-	return gcnew FBXNode(node->GetParent());
+	if (node->GetParent()) 
+	{
+		return gcnew FBXNode(node->GetParent());
+	}
+	else return nullptr;
+	
 }
 
 bool FBXWrapper::FBXNode::Equals(FBXNode^ n)
@@ -531,7 +537,19 @@ List<FBXWrapper::FBXVector4^>^ FBXWrapper::FBXShape::GetControlPoints()
 	int count = shape->mControlPoints.GetCount();
 	for (int i = 0; i < count; i++)
 		result->Add(gcnew FBXVector4(shape->mControlPoints[i]));
+
 	return result;
+}
+
+void FBXWrapper::FBXShape::SetControlPoints(List<FBXWrapper::FBXVector4^>^ points)
+{
+	shape->InitControlPoints(points->Count);
+	int count = shape->mControlPoints.GetCount();
+	FbxVector4* lControlPoints = shape->GetControlPoints();
+	for (int i = 0; i < count; i++) 
+	{
+		lControlPoints[i] = *(points[i]->vector);
+	}
 }
 
 

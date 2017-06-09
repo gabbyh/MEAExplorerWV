@@ -7,21 +7,37 @@ namespace PluginSystem
 {
     public class FBXExporter : ASkinnedMeshExporter, IMeshExporter
     {
-        public const float exportScale = 1000f;
+        private float exportScale = 100f;
 
         public FBXExporter(SkeletonAsset skel) : base(skel) { }
 
-        public void ExportLod(MeshAsset mesh, int lodIndex, string targetFile)
+        public void ExportLod(MeshAsset mesh, int lodIndex, string targetFile, float scale = 100f)
         {
+            exportScale = scale;
             ExportMesh(mesh, lodIndex, targetFile);
         }
 
-        public void ExportAllLods(MeshAsset mesh, string targetdir)
+        public void ExportAllLods(MeshAsset mesh, string targetdir, float scale = 100f)
         {
+            exportScale = scale;
             for (int i = 0; i < mesh.lods.Count; i++)
             {
                 string targetFile = Path.Combine(targetdir, mesh.lods[i].shortName + ".fbx");
                 ExportMesh(mesh, i, targetFile);
+            }
+        }
+
+        public void ExportLodWithMorph(MeshAsset mesh, int lodIndex, MorphStaticAsset morph, string targetFile, float scale = 100f, bool bake = false)
+        {
+            exportScale = scale;
+            if (bake)
+            {
+                morph.ApplyMorphToMesh(mesh);
+                ExportMeshWithMorph(Skeleton, mesh, lodIndex, morph.BonesMorph, targetFile);
+            }
+            else
+            {
+                ExportMeshWithMorph(Skeleton, mesh, lodIndex, morph.GetVerticesForLod(lodIndex, mesh), morph.BonesMorph, targetFile);
             }
         }
 
@@ -99,7 +115,10 @@ namespace PluginSystem
             FBXHelper.InitializeSdkObjects(lSdkManager, lScene);
             FBXNode SceneRoot = lScene.GetRootNode();
             FBXNode fbxMesh = CreateFbxMesh(mesh.lods[lodIndex], lScene);
-            AddMorphToMesh(lScene, fbxMesh, morphVertex);
+            if (morphVertex != null && morphVertex.Count > 0)
+            {
+                AddMorphToMesh(lScene, fbxMesh, morphVertex);
+            }         
             SceneRoot.AddChild(fbxMesh);
             if (Skeleton != null)
             {
@@ -110,6 +129,11 @@ namespace PluginSystem
                 StoreBindPose(lScene, fbxMesh);
             }
             return SaveScene(targetdir, lSdkManager, lScene);
+        }
+
+        private bool ExportMeshWithMorph(SkeletonAsset Skeleton, MeshAsset mesh, int lodIndex, List<Vector> morphBones, String targetdir)
+        {
+            return ExportMeshWithMorph(Skeleton, mesh, lodIndex, null, morphBones, targetdir);
         }
 
 
@@ -201,12 +225,20 @@ namespace PluginSystem
                     FBXVector4 position = new FBXVector4(section.vertices[j].position.members[0] * exportScale, section.vertices[j].position.members[1] * exportScale, section.vertices[j].position.members[2] * exportScale, 0);
                     FBXVector4 normal = new FBXVector4(section.vertices[j].normals.members[0], section.vertices[j].normals.members[1], section.vertices[j].normals.members[2], section.vertices[j].normals.members[3]);
                     FBXVector4 textCoords = new FBXVector4(section.vertices[j].texCoords.members[0], (-section.vertices[j].texCoords.members[1] + 1), 0, 0);
-                    FBXVector4 bitangent = new FBXVector4(section.vertices[j].biTangents.members[0], section.vertices[j].biTangents.members[1], section.vertices[j].biTangents.members[2], section.vertices[j].biTangents.members[3]);
-                    FBXVector4 tangent = new FBXVector4(section.vertices[j].tangents.members[0], section.vertices[j].tangents.members[1], section.vertices[j].tangents.members[2], section.vertices[j].tangents.members[3]);
                     fbxMesh.SetControlPoint(VertexOffset + j, position);
                     lGeometryElementNormal.Add(normal);
-                    lGeometryElementBiNormal.Add(bitangent);
-                    lGeometryElementTangent.Add(tangent);
+
+                    // adding a check on bitangent and tangent as some meshes don't have them...
+                    if (section.vertices[j].biTangents.members.Length == 4)
+                    {
+                        FBXVector4 bitangent = new FBXVector4(section.vertices[j].biTangents.members[0], section.vertices[j].biTangents.members[1], section.vertices[j].biTangents.members[2], section.vertices[j].biTangents.members[3]);
+                        lGeometryElementBiNormal.Add(bitangent);
+                    }
+                    if (section.vertices[j].tangents.members.Length == 4)
+                    {
+                        FBXVector4 tangent = new FBXVector4(section.vertices[j].tangents.members[0], section.vertices[j].tangents.members[1], section.vertices[j].tangents.members[2], section.vertices[j].tangents.members[3]);
+                        lGeometryElementTangent.Add(tangent);
+                    }                   
                     int uvI = 0;
                     foreach (FBXGeometryElementUV uv in UVs)
                     {
@@ -479,9 +511,13 @@ namespace PluginSystem
 
             for (int i = 0; i < count; i++)
             {
-                FBXVector4 cp = new FBXVector4(morph[i].members[0], morph[i].members[1], morph[i].members[2], 0);
+                FBXVector4 cp = new FBXVector4(morph[i].members[0] * exportScale, 
+                                               morph[i].members[1] * exportScale, 
+                                               morph[i].members[2] * exportScale, 
+                                               0);
                 lControlPoints[i] = cp;
             }
+            lShape.SetControlPoints(lControlPoints);
 
             FBXBlendShape lBlendShape = FBXBlendShape.Create(pScene, "morph");
             FBXBlendShapeChannel lBlendShapeChannel = FBXBlendShapeChannel.Create(pScene, "morphchannel");

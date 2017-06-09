@@ -18,19 +18,38 @@ namespace PluginSystem
 
         }
 
-        public void ExportLod(MeshAsset mesh, int lodIndex, string targetFile)
+        public void ExportLod(MeshAsset mesh, int lodIndex, string targetFile, float scale = 1.0f)
         {
-            byte[] pskData = ExportSkinnedMeshToPsk(Skeleton, mesh.lods[0]);
+            byte[] pskData = ExportSkinnedMeshToPsk(Skeleton, mesh.lods[0], scale);
             File.WriteAllBytes(targetFile, pskData);
         }
-        public void ExportAllLods(MeshAsset mesh, string targetdir)
+        public void ExportAllLods(MeshAsset mesh, string targetdir, float scale = 1.0f)
         {
             foreach (MeshLOD lod in mesh.lods)
             {
                 string targetFile = Path.Combine(targetdir, lod.shortName + ".psk");
-                byte[] data = ExportSkinnedMeshToPsk(Skeleton, lod);
+                byte[] data = ExportSkinnedMeshToPsk(Skeleton, lod, scale);
                 File.WriteAllBytes(targetFile, data);
             }
+        }
+
+        public void ExportLodWithMorph(MeshAsset mesh, int lodIndex, MorphStaticAsset morph, string targetfile, float scale = 1.0f, bool bake = false)
+        {
+            morph.ApplyMorphToMesh(mesh);
+            ExportLod(mesh, lodIndex, targetfile, scale);
+
+            // export psa file holding a pose corresponding to the skeleton morph
+            string psaFileName = Path.GetFileNameWithoutExtension(targetfile) + ".psa";
+            string targetPsaFile = Path.Combine(Path.GetDirectoryName(targetfile), psaFileName);
+            try
+            {
+                byte[] psaData = ExportPoseToPsa(Skeleton, morph.BonesMorph, scale);
+                File.WriteAllBytes(targetPsaFile, psaData);
+            }
+            catch (ArgumentNullException)
+            {
+                Console.WriteLine("Unable to export pose as psa : skeleton not provided");
+            }  
         }
 
         // export given LOD to psk
@@ -44,7 +63,111 @@ namespace PluginSystem
             Psk.faces = new List<PSKFile.PSKFace>();
             Psk.weights = new List<PSKFile.PSKWeight>();
 
-            /* No skeleton defined still */
+            // create skeleton
+            Psk.bones = CreatePskSkeleton(skeleton, OverrideScale);
+            
+            // create mesh
+            int offset = 0;
+            int matIdx = 0;
+            for (int bufIdx = 0; bufIdx < LOD.sections.Count; bufIdx++)
+            {
+                MeshLodSection MeshBuffer = LOD.sections[bufIdx];
+                for (int i = 0; i < MeshBuffer.vertices.Count; i++)
+                {
+                    if (MeshBuffer.vertices[i].position.members.Length != 3) MeshBuffer.vertices[i].position.members = new float[3];
+                    if (MeshBuffer.vertices[i].texCoords.members.Length != 2) MeshBuffer.vertices[i].texCoords.members = new float[2];
+                    Vector p = new Vector(MeshBuffer.vertices[i].position.members[0] * OverrideScale, MeshBuffer.vertices[i].position.members[1] * OverrideScale, MeshBuffer.vertices[i].position.members[2] * OverrideScale);
+                    Psk.points.Add(new PSKFile.PSKPoint(ConvertVector3ToPsk(p)));
+                    Vector tc = new Vector(MeshBuffer.vertices[i].texCoords.members[0], MeshBuffer.vertices[i].texCoords.members[1]);
+                    Psk.edges.Add(new PSKFile.PSKEdge((ushort)(offset + i), ConvertVector2ToPsk(tc), (byte)matIdx));
+                    if(MeshBuffer.vertices[i].boneWeights != null)
+                        for (int x = 0; x < 4; x++)
+                        {
+                            float Weight = MeshBuffer.vertices[i].boneWeights[x];
+
+                            // only add meaningful weights
+                            if (Weight != 0.0f)
+                            {
+                                int BoneIndex = MeshBuffer.vertices[i].boneIndices[x];
+
+                                int SubObjectBoneIndex = MeshBuffer.boneIndices[BoneIndex];
+                                Psk.weights.Add(new PSKFile.PSKWeight(
+                                    Weight,
+                                    (int)(offset + i),
+                                    SubObjectBoneIndex
+                                    ));
+                            }
+                        }
+                }
+
+                // reverse indices order before building faces: necessary for correct normal building since all points have been mirrored along z-axis.
+                // if this is not done, all normals are flipped inside.
+                if (Reverse) MeshBuffer.indicies.Reverse();
+                for (int fi = 0; fi < MeshBuffer.indicies.Count; fi++)
+                {
+                    if (fi % 3 == 0)
+                    {
+                        Psk.faces.Add(new PSKFile.PSKFace(
+                            (int)(offset + MeshBuffer.indicies[fi]),
+                            (int)(offset + MeshBuffer.indicies[fi + 1]),
+                            (int)(offset + MeshBuffer.indicies[fi + 2]),
+                            (byte)matIdx)
+                        );
+                    }
+                }
+                Psk.materials.Add(new PSKFile.PSKMaterial(LOD.sections[bufIdx].matName, matIdx));
+
+                offset += (int)LOD.sections[bufIdx].vertCount;
+                matIdx++;
+            }
+            return Psk.SaveToMemory().ToArray();
+        }
+
+        private byte[] ExportPoseToPsa(SkeletonAsset Skeleton, List<Vector> bonesOffset, float OverrideScale = 1.0f)
+        {
+            if (Skeleton == null)
+            {
+                throw new ArgumentNullException("Provided skeleton was null, cannot proceed with PSA export!");
+            }
+            
+            PSAFile psaFile = new PSAFile();
+            psaFile.data.Bones = CreatePskSkeleton(Skeleton, OverrideScale);
+            psaFile.data.Infos = new List<PSAFile.PSAAnimInfo>();
+            psaFile.data.Keys = new List<PSAFile.PSAAnimKeys>();
+
+            PSAFile.PSAAnimInfo MorphPoseAnimInfo = new PSAFile.PSAAnimInfo();
+            MorphPoseAnimInfo.name = "FaceMorph";
+            MorphPoseAnimInfo.group = "GroupFaceMorph";
+            MorphPoseAnimInfo.TotalBones = Skeleton.Bones.Count;
+            MorphPoseAnimInfo.RootInclude = 1;
+            MorphPoseAnimInfo.NumRawFrames = 1;
+            MorphPoseAnimInfo.AnimRate = 30.0f;
+
+            psaFile.data.Infos.Add(MorphPoseAnimInfo);
+
+            for (int i = 0; i < bonesOffset.Count; i++)
+            {
+                
+                PSAFile.PSAAnimKeys boneKey = new PSAFile.PSAAnimKeys();
+                boneKey.rotation = psaFile.data.Bones[i].rotation;
+
+                Vector nBoneLocation = new Vector(new float [3]);
+                nBoneLocation.members[0] = Skeleton.Bones[i].Location.members[0] + (bonesOffset[i].members[0] * OverrideScale);
+                nBoneLocation.members[2] = Skeleton.Bones[i].Location.members[1] + (bonesOffset[i].members[1] * OverrideScale);
+                nBoneLocation.members[1] = Skeleton.Bones[i].Location.members[2] + (bonesOffset[i].members[2] * OverrideScale);
+                PSKFile.PSKPoint boneKeyLocation = new PSKFile.PSKPoint(ConvertVector3ToPsk(nBoneLocation));       
+                boneKey.location = boneKeyLocation;
+
+                boneKey.time = 1;
+
+                psaFile.data.Keys.Add(boneKey);
+            }
+            return psaFile.SaveToMemory().ToArray();
+        }
+
+        private List<PSKFile.PSKBone> CreatePskSkeleton(SkeletonAsset skeleton, float OverrideScale = 1.0f)
+        {
+            var PskBones = new List<PSKFile.PSKBone>();
             if (skeleton != null)
             {
                 for (int i = 0; i < skeleton.Bones.Count; i++)
@@ -63,10 +186,10 @@ namespace PluginSystem
                     RotMatrix[2] = new float[4];
                     RotMatrix[3] = new float[4];
 
-                    RotMatrix[0][0] = skeleton.Bones[i].Right.members[0];   RotMatrix[0][1] = skeleton.Bones[i].Right.members[1];   RotMatrix[0][2] = skeleton.Bones[i].Right.members[2];   RotMatrix[0][3] = 0.0f;
-                    RotMatrix[1][0] = skeleton.Bones[i].Up.members[0];      RotMatrix[1][1] = skeleton.Bones[i].Up.members[1];      RotMatrix[1][2] = skeleton.Bones[i].Up.members[2];      RotMatrix[1][3] = 0.0f;
+                    RotMatrix[0][0] = skeleton.Bones[i].Right.members[0]; RotMatrix[0][1] = skeleton.Bones[i].Right.members[1]; RotMatrix[0][2] = skeleton.Bones[i].Right.members[2]; RotMatrix[0][3] = 0.0f;
+                    RotMatrix[1][0] = skeleton.Bones[i].Up.members[0]; RotMatrix[1][1] = skeleton.Bones[i].Up.members[1]; RotMatrix[1][2] = skeleton.Bones[i].Up.members[2]; RotMatrix[1][3] = 0.0f;
                     RotMatrix[2][0] = skeleton.Bones[i].Forward.members[0]; RotMatrix[2][1] = skeleton.Bones[i].Forward.members[1]; RotMatrix[2][2] = skeleton.Bones[i].Forward.members[2]; RotMatrix[2][3] = 0.0f;
-                    RotMatrix[3][0] = 0.0f;                                 RotMatrix[3][1] = 0.0f;                                 RotMatrix[3][2] = 0.0f;                                 RotMatrix[3][3] = 1.0f;
+                    RotMatrix[3][0] = 0.0f; RotMatrix[3][1] = 0.0f; RotMatrix[3][2] = 0.0f; RotMatrix[3][3] = 1.0f;
 
                     Vector Quat = new Vector(new float[4]);
                     float tr = RotMatrix[0][0] + RotMatrix[1][1] + RotMatrix[2][2];
@@ -113,63 +236,10 @@ namespace PluginSystem
                     }
 
                     Bone.rotation = new PSKFile.PSKQuad(ConvertVector4ToPsk(Quat));
-                    Psk.bones.Add(Bone);
+                    PskBones.Add(Bone);
                 }
             }
-            int offset = 0;
-            int matIdx = 0;
-            for (int bufIdx = 0; bufIdx < LOD.sections.Count; bufIdx++)
-            {
-                MeshLodSection MeshBuffer = LOD.sections[bufIdx];
-                for (int i = 0; i < MeshBuffer.vertices.Count; i++)
-                {
-                    if (MeshBuffer.vertices[i].position.members.Length != 3) MeshBuffer.vertices[i].position.members = new float[3];
-                    if (MeshBuffer.vertices[i].texCoords.members.Length != 2) MeshBuffer.vertices[i].texCoords.members = new float[2];
-                    Vector p = new Vector(MeshBuffer.vertices[i].position.members[0], MeshBuffer.vertices[i].position.members[1], MeshBuffer.vertices[i].position.members[2]);
-                    Psk.points.Add(new PSKFile.PSKPoint(ConvertVector3ToPsk(p)));
-                    Vector tc = new Vector(MeshBuffer.vertices[i].texCoords.members[0], MeshBuffer.vertices[i].texCoords.members[1]);
-                    Psk.edges.Add(new PSKFile.PSKEdge((ushort)(offset + i), ConvertVector2ToPsk(tc), (byte)matIdx));
-                    if(MeshBuffer.vertices[i].boneWeights != null)
-                        for (int x = 0; x < 4; x++)
-                        {
-                            float Weight = MeshBuffer.vertices[i].boneWeights[x];
-
-                            // only add meaningful weights
-                            if (Weight != 0.0f)
-                            {
-                                int BoneIndex = MeshBuffer.vertices[i].boneIndices[x];
-
-                                int SubObjectBoneIndex = MeshBuffer.boneIndices[BoneIndex];
-                                Psk.weights.Add(new PSKFile.PSKWeight(
-                                    Weight,
-                                    (int)(offset + i),
-                                    SubObjectBoneIndex
-                                    ));
-                            }
-                        }
-                }
-
-                // reverse indices order before building faces: necessary for correct normal building since all points have been mirrored along z-axis.
-                // if this is not done, all normals are flipped inside.
-                if (Reverse) MeshBuffer.indicies.Reverse();
-                for (int fi = 0; fi < MeshBuffer.indicies.Count; fi++)
-                {
-                    if (fi % 3 == 0)
-                    {
-                        Psk.faces.Add(new PSKFile.PSKFace(
-                            (int)(offset + MeshBuffer.indicies[fi]),
-                            (int)(offset + MeshBuffer.indicies[fi + 1]),
-                            (int)(offset + MeshBuffer.indicies[fi + 2]),
-                            (byte)matIdx)
-                        );
-                    }
-                }
-                Psk.materials.Add(new PSKFile.PSKMaterial(LOD.sections[bufIdx].matName, matIdx));
-
-                offset += (int)LOD.sections[bufIdx].vertCount;
-                matIdx++;
-            }
-            return Psk.SaveToMemory().ToArray();
+            return PskBones;
         }
 
         // conversions to export to psk as psk orientation is different from the one used in frostbite/mea
