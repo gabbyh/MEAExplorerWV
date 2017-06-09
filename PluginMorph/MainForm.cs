@@ -94,10 +94,6 @@ namespace PluginMorph
             ActivateControls(false);
             TreeNode tempNode = new TreeNode("Loading, please wait...");
             tv1.Nodes.Add(tempNode);
-        }
-
-        private void MainForm_Activated(object sender, EventArgs e)
-        {
             MainForm_Load();
         }
 
