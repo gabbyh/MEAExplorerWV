@@ -544,8 +544,7 @@ namespace PluginMorph
                                 presetMeshAsset.lods[lod].LoadVertexData(new MemoryStream(rawChunkBuffer));
 
                                 IMeshExporter exporter = MeshExporter.GetExporterByExtension(ext, skeleton);
-                                //exporter.ExportLodWithMorph(presetMeshAsset, lod, morph, sfd.FileName, oScale, bakeMorphToMesh);
-                                exporter.ExportLod(presetMeshAsset, lod, sfd.FileName);
+                                exporter.ExportLodWithMorph(presetMeshAsset, lod, morph, sfd.FileName, oScale, bakeMorphToMesh);
                                 MessageBox.Show("Done.");
                             }
                             else MessageBox.Show("Error : chunk for this lod was not found");
