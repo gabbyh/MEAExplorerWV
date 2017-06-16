@@ -506,7 +506,7 @@ namespace PluginMorph
                     byte[] meshData = main.Host.getDataBySha1(presetMeshRes.sha1);
                     MeshAsset presetMeshAsset = new MeshAsset(new MemoryStream(meshData));
 
-                    ExportMorphSaveDialog emd = new ExportMorphSaveDialog(morph.LodCount, 100f);
+                    ExportMeshSaveDialog emd = new ExportMeshSaveDialog(morph.LodCount, 100f, true);
                     if (emd.ShowDialog() == System.Windows.Forms.DialogResult.OK)
                     {
                         SkeletonAsset skeleton = null;

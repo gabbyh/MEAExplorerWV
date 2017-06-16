@@ -413,10 +413,83 @@ namespace PluginMeshesWV
         private void toolStripButton5_Click(object sender, EventArgs e)
         {
             int n = toolStripComboBox1.SelectedIndex;
+
+            string selectedSkeleton = null;
+            if (toolStripComboBox2.Enabled && toolStripComboBox2.SelectedIndex > 1) 
+            {
+                selectedSkeleton = (string)toolStripComboBox2.SelectedItem;
+            }
+
+            ExportMeshSaveDialog emsd = new ExportMeshSaveDialog(mesh.lods.Count, 100f, false, 
+                                                                 (mesh.header.type == MeshType.MeshType_Skinned), selectedSkeleton, n);
+            if (emsd.ShowDialog() == DialogResult.OK)
+            {
+                // skeleton
+                if (skeletons[toolStripComboBox2.SelectedItem.ToString()] != emsd.Skeleton)
+                {
+                    string sha1 = emsd.Skeleton;
+                    if (sha1 != null)
+                    {
+                        var sebx = new EBX(new MemoryStream(main.Host.getDataBySha1(Helpers.HexStringToByteArray(sha1))));
+                        skeleton = new SkeletonAsset(sebx);
+                    }
+                }
+                // scale
+                float aScale = emsd.ExportScale;
+                // get exporter by format
+                var exporter = MeshExporter.GetExporterByExtension(emsd.Format, skeleton);
+                if (exporter != null)
+                {
+                    if (emsd.AllLod)
+                    {
+                        FolderBrowserDialog fbd = new FolderBrowserDialog();
+                        fbd.Description = "Select folder where to save the lods";
+
+                        if (fbd.ShowDialog() == DialogResult.OK)
+                        {
+                            Cursor.Current = Cursors.WaitCursor;
+                            for (int i = 0; i < mesh.lods.Count; i++)
+                            {
+                                PrepareLodForExport(mesh, i);
+                            }
+                            exporter.ExportAllLods(mesh, fbd.SelectedPath, aScale);
+                            MessageBox.Show("Done.");
+                            Cursor.Current = Cursors.Default;
+                        }
+                    }
+                    else
+                    {
+                        // lod
+                        int sLod = emsd.Lod;
+
+                        SaveFileDialog saveFileDiag = new SaveFileDialog();
+                        saveFileDiag.Title = "Save as...";
+                        saveFileDiag.Filter = "*" + emsd.Format + "|*" + emsd.Format;
+                        saveFileDiag.FileName = mesh.lods[n].shortName;
+                        if (saveFileDiag.ShowDialog() == DialogResult.OK)
+                        {
+                            Cursor.Current = Cursors.WaitCursor;
+                            string targetFile = saveFileDiag.FileName;
+                            PrepareLodForExport(mesh, sLod);
+                            exporter.ExportLod(mesh, sLod, targetFile, aScale);
+                            MessageBox.Show("Done.");
+                            Cursor.Current = Cursors.Default;
+                        }
+                    }                   
+                }
+                else
+                {
+                    MessageBox.Show("Unknown extension " + emsd.Format);
+                }
+            }
+        }
+
+        private void PrepareLodForExport(MeshAsset mesh, int n)
+        {
             LoadRawLodBuffer(mesh, n);
             if (rawLodBuffer != null)
             {
-                mesh.lods[n].LoadVertexData(new MemoryStream(rawLodBuffer));           
+                mesh.lods[n].LoadVertexData(new MemoryStream(rawLodBuffer));
                 if (flipUToolStripMenuItem.Checked || flipVToolStripMenuItem.Checked)
                 {
                     for (int i = 0; i < mesh.lods[n].sections.Count; i++)
@@ -433,25 +506,6 @@ namespace PluginMeshesWV
                             }
                         }
                         mesh.lods[n].sections[i] = sec;
-                    }
-                }
-                SaveFileDialog saveFileDiag = new SaveFileDialog();
-                saveFileDiag.Title = "Save as...";
-                saveFileDiag.Filter = "*.obj|*.obj|*.psk|*.psk|*.fbx|*.fbx";
-                saveFileDiag.FileName = mesh.header.shortName;
-                if (saveFileDiag.ShowDialog() == DialogResult.OK)
-                {
-                    string extension = Path.GetExtension(saveFileDiag.FileName);
-                    string targetFile = saveFileDiag.FileName;
-                    var exporter = MeshExporter.GetExporterByExtension(extension, skeleton);
-                    if (exporter != null)
-                    {
-                        exporter.ExportLod(mesh, n, targetFile);
-                        MessageBox.Show("Done.");
-                    }
-                    else
-                    {
-                        MessageBox.Show("Unknown extension " + extension);
                     }
                 }
             }
