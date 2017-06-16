@@ -166,6 +166,8 @@ namespace PluginMeshesWV
 
         private void tv2_AfterSelect(object sender, TreeViewEventArgs e)
         {
+            toolStripComboBox2.Enabled = false;
+            toolStripButton8.Enabled = false;
             SelectMesh();
         }
 
@@ -207,6 +209,11 @@ namespace PluginMeshesWV
                     toolStripComboBox1.Items.Add("LOD " + i);
                 if (mesh.lods.Count > 0)
                     toolStripComboBox1.SelectedIndex = 0;
+                if (mesh.header.type == MeshType.MeshType_Skinned)
+                {
+                    toolStripComboBox2.Enabled = true;
+                    toolStripButton8.Enabled = true;
+                }
                 ebxObject = new EBX(new MemoryStream(rawEbxBuffer));
                 tv3.Nodes.Add(ebxObject.ToNode());
             }
@@ -248,15 +255,10 @@ namespace PluginMeshesWV
             string sid = Helpers.ByteArrayToHexString(id);
             rawLodBuffer = null;
             hb2.ByteProvider = new DynamicByteProvider(new byte[0]);
-            foreach (ChunkInfo chunk in chunks)
-                if (chunk.id == sid)
-                {
-                    rawLodBuffer = main.Host.getDataBySha1(chunk.sha1);
-                    hb2.ByteProvider = new DynamicByteProvider(rawLodBuffer);
-                    break;
-                }
+            LoadRawLodBuffer(mesh, n);
             if (rawLodBuffer != null)
             {
+                hb2.ByteProvider = new DynamicByteProvider(rawLodBuffer);
                 mesh.lods[n].LoadVertexData(new MemoryStream(rawLodBuffer));
                 timer1.Enabled = false;
                 List<RawVector3> verts = new List<RawVector3>();
@@ -411,28 +413,10 @@ namespace PluginMeshesWV
         private void toolStripButton5_Click(object sender, EventArgs e)
         {
             int n = toolStripComboBox1.SelectedIndex;
-            byte[] id = mesh.lods[n].chunkID;
-            string sid = Helpers.ByteArrayToHexString(id);
-            rawLodBuffer = null;
-            hb2.ByteProvider = new DynamicByteProvider(new byte[0]);
-            foreach (ChunkInfo chunk in chunks)
-                if (chunk.id == sid)
-                {
-                    rawLodBuffer = main.Host.getDataBySha1(chunk.sha1);
-                    hb2.ByteProvider = new DynamicByteProvider(rawLodBuffer);
-                    break;
-                }
-            if (rawLodBuffer == null)
-                foreach (ChunkInfo chunk in tocChunks[currToc])
-                    if (chunk.id == sid)
-                    {
-                        rawLodBuffer = main.Host.getDataBySha1(chunk.sha1);
-                        hb2.ByteProvider = new DynamicByteProvider(rawLodBuffer);
-                        return;
-                    }
+            LoadRawLodBuffer(mesh, n);
             if (rawLodBuffer != null)
             {
-                mesh.lods[n].LoadVertexData(new MemoryStream(rawLodBuffer));
+                mesh.lods[n].LoadVertexData(new MemoryStream(rawLodBuffer));           
                 if (flipUToolStripMenuItem.Checked || flipVToolStripMenuItem.Checked)
                 {
                     for (int i = 0; i < mesh.lods[n].sections.Count; i++)
@@ -470,6 +454,51 @@ namespace PluginMeshesWV
                         MessageBox.Show("Unknown extension " + extension);
                     }
                 }
+            }
+        }
+
+        /// <summary>
+        /// Load raw lod buffer of given mesh for given lod
+        /// For skeletal meshes : load vertices info from chunk after looking for chunk file
+        /// For rigid meshes : load vertices info from data in res buffer
+        /// </summary>
+        /// <param name="mesh">mesh for which we want to load vertices info.</param>
+        /// <param name="selectedLod">lod to load info for.</param>
+        private void LoadRawLodBuffer(MeshAsset mesh, int selectedLod)
+        {
+            byte[] id = mesh.lods[selectedLod].chunkID;
+            string sid = Helpers.ByteArrayToHexString(id);
+
+            rawLodBuffer = null;
+            // if this lod has a chunk id (skinned mesh case)
+            if (sid != "00000000000000000000000000000000")
+            {            
+                // then the raw lod buffer will be a chunk : we look for it.
+                hb2.ByteProvider = new DynamicByteProvider(new byte[0]);
+                foreach (ChunkInfo chunk in chunks)
+                    if (chunk.id == sid)
+                    {
+                        rawLodBuffer = main.Host.getDataBySha1(chunk.sha1);
+                        hb2.ByteProvider = new DynamicByteProvider(rawLodBuffer);
+                        break;
+                    }
+                if (rawLodBuffer == null)
+                    foreach (ChunkInfo chunk in tocChunks[currToc])
+                        if (chunk.id == sid)
+                        {
+                            rawLodBuffer = main.Host.getDataBySha1(chunk.sha1);
+                            hb2.ByteProvider = new DynamicByteProvider(rawLodBuffer);
+                            break;
+                        }
+            }
+            else
+            {
+                // when there is no chunk id, the info is in the res buffer itself (rigid meshes case)
+                MemoryStream str = new MemoryStream(rawResBuffer);
+                str.Seek(mesh.lods[selectedLod].InnerDataOffset, SeekOrigin.Begin);
+                int countb = (int)(mesh.lods[selectedLod].vertexDataSize + mesh.lods[selectedLod].indexDataSize);
+                rawLodBuffer = new byte[countb];
+                str.Read(rawLodBuffer, 0, countb);
             }
         }
 

@@ -39,6 +39,35 @@ namespace PluginSystem
                     s.Seek(l, 0);
                     lods.Add(new MeshLOD(s, header.sectionCount / header.lodCount));
                 }
+
+            // for rigid meshes, there are no chunks, vertex data is stored in res buffer
+            // not sure exactly what's the what with the offset calculation but it seems to work...
+            if (header.type == MeshType.MeshType_Rigid)
+            {
+                for (int n = 0; n < lods.Count; n++)
+                {
+                    s.Seek((long)this.lods[n].subIndicies[0].pointer, SeekOrigin.Begin);
+                    for (int j = 0; j < this.lods[n].subIndicies.Length; j++)
+                    {
+                        ArrayPointer lodArray = lods[n].subIndicies[j];
+                        byte[] result = new byte[lodArray.count];
+                        s.Read(result, 0, (int)lodArray.count);
+                    }
+                }
+                lods[0].InnerDataOffset = s.Position + 1;
+                for (int i = 1; i < lods.Count; i++ )
+                {
+                    // offset for this lod is at least : offset of previous lod + size of preivous lod buffers.
+                    lods[i].InnerDataOffset = lods[i-1].InnerDataOffset + lods[i - 1].vertexDataSize + lods[i - 1].indexDataSize;
+
+                    // but offset is also always a multiple of 16, so if found offset is not, we increment up to the next 16 multiple.
+                    while (lods[i].InnerDataOffset % 16L != 0L)
+                    {
+                        lods[i].InnerDataOffset = lods[i].InnerDataOffset + 1L;
+                    }
+                }
+            }
+            
         }
 
         public override string ToString()
@@ -90,7 +119,7 @@ namespace PluginSystem
             unk02 = Helpers.ReadUShort(s);
             unk03 = Helpers.ReadUShort(s);
             unk04 = Helpers.ReadULong(s);
-            unk05 = Helpers.ReadULong(s);
+            unk05 = Helpers.ReadULong(s);       
         }
 
         public override string ToString()
@@ -138,7 +167,9 @@ namespace PluginSystem
         public uint bonePartCount;
         public List<MeshLodSection> sections;
 
-        // added
+        public long InnerDataOffset; // used for Rigid mesh type.
+
+        // bones
         public uint bonePartOffset;
         public int[] bonesIndex;
 
@@ -147,7 +178,6 @@ namespace PluginSystem
         {
             return sections.Sum(s => (int)s.vertCount);
         }
-        // end added
 
         public MeshLOD(Stream s, int sectionCount)
         {

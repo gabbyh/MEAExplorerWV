@@ -63,8 +63,9 @@ namespace PluginSystem
             Psk.faces = new List<PSKFile.PSKFace>();
             Psk.weights = new List<PSKFile.PSKWeight>();
 
-            // create skeleton
-            Psk.bones = CreatePskSkeleton(skeleton, OverrideScale);
+            // create skeleton (only if mesh is skinned mesh)
+            if (LOD.type == MeshType.MeshType_Skinned)
+                Psk.bones = CreatePskSkeleton(skeleton, OverrideScale);
             
             // create mesh
             int offset = 0;

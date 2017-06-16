@@ -43,7 +43,7 @@ namespace PluginSystem
 
         public void ExportMesh(MeshAsset mesh, int lodIndex, string targetFile)
         {
-            if (Skeleton != null)
+            if (Skeleton != null && mesh.header.type == MeshType.MeshType_Skinned)
             {
                 ExportSkinnedMeshToFBX(Skeleton, mesh, lodIndex, targetFile, true);
             }
@@ -236,7 +236,7 @@ namespace PluginSystem
                     }
                     if (section.vertices[j].tangents.members.Length == 4)
                     {
-                        FBXVector4 tangent = new FBXVector4(section.vertices[j].tangents.members[0], section.vertices[j].tangents.members[1], section.vertices[j].tangents.members[2], section.vertices[j].tangents.members[3]);
+                        FBXVector4 tangent = new FBXVector4(section.vertices[j].tangents.members[0], section.vertices[j].tangents.members[1], section.vertices[j].tangents.members[2], section.vertices[j].tangents.members[3]);                        
                         lGeometryElementTangent.Add(tangent);
                     }                   
                     int uvI = 0;
