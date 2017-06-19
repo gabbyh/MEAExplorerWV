@@ -52,6 +52,15 @@ namespace PluginSystem
             }  
         }
 
+        public void ExportAllLodsWithMorph(MeshAsset mesh, MorphStaticAsset morph, string targetdir, float scale = 1.0f, bool bake = false)
+        {
+            for (int morphLod = 0; morphLod < morph.LodCount; morphLod++)
+            {
+                string targetFile = Path.Combine(targetdir, mesh.lods[morphLod].shortName + ".psk");
+                ExportLodWithMorph(mesh, morphLod, morph, targetFile, scale, bake);
+            }
+        }
+
         // export given LOD to psk
         private byte[] ExportSkinnedMeshToPsk(SkeletonAsset skeleton, MeshLOD LOD, float OverrideScale = 1.0f)
         {
@@ -75,12 +84,22 @@ namespace PluginSystem
                 MeshLodSection MeshBuffer = LOD.sections[bufIdx];
                 for (int i = 0; i < MeshBuffer.vertices.Count; i++)
                 {
+                    // vertex position
                     if (MeshBuffer.vertices[i].position.members.Length != 3) MeshBuffer.vertices[i].position.members = new float[3];
-                    if (MeshBuffer.vertices[i].texCoords.members.Length != 2) MeshBuffer.vertices[i].texCoords.members = new float[2];
                     Vector p = new Vector(MeshBuffer.vertices[i].position.members[0] * OverrideScale, MeshBuffer.vertices[i].position.members[1] * OverrideScale, MeshBuffer.vertices[i].position.members[2] * OverrideScale);
                     Psk.points.Add(new PSKFile.PSKPoint(ConvertVector3ToPsk(p)));
-                    Vector tc = new Vector(MeshBuffer.vertices[i].texCoords.members[0], MeshBuffer.vertices[i].texCoords.members[1]);
-                    Psk.edges.Add(new PSKFile.PSKEdge((ushort)(offset + i), ConvertVector2ToPsk(tc), (byte)matIdx));
+                    
+                    // vertex uv
+                    for (int uvInd = 0; uvInd < Vertex.UV_SLOTS; uvInd++)
+                    {
+                        if (MeshBuffer.vertices[i].texCoords[uvInd] == null) MeshBuffer.vertices[i].texCoords[uvInd] = new Vector(new float[2]);
+                        if (MeshBuffer.vertices[i].texCoords[uvInd].members.Length != 2) MeshBuffer.vertices[i].texCoords[uvInd].members = new float[2];
+                        Vector tc = new Vector(MeshBuffer.vertices[i].texCoords[uvInd].members[0], MeshBuffer.vertices[i].texCoords[uvInd].members[1]);
+                        //Psk.edges.Add(new PSKFile.PSKEdge((ushort)(offset + i), ConvertVector2ToPsk(tc), (byte)matIdx));
+                        Psk.edges.Add(new PSKFile.PSKEdge((ushort)(offset + i), ConvertVector2ToPsk(tc), (byte)uvInd));
+                    }
+                    
+                    // bones weights
                     if(MeshBuffer.vertices[i].boneWeights != null)
                         for (int x = 0; x < 4; x++)
                         {

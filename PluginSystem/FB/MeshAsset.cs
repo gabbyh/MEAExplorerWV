@@ -26,7 +26,7 @@ namespace PluginSystem
     }
 
     public class MeshAsset
-    {
+    {   
         public MeshHeader header;
         public List<MeshLOD> lods;
         public MeshAsset(Stream s)
@@ -393,13 +393,16 @@ namespace PluginSystem
 
     public class Vertex
     {
+        public const int UV_SLOTS = 4;
+
         public Vector biTangents = new Vector();
         public int[] boneIndices;
         public float[] boneWeights;
         public Vector normals = new Vector();
         public Vector position = new Vector();
         public Vector tangents = new Vector();
-        public Vector texCoords = new Vector();
+        //public Vector texCoords = new Vector();
+        public Vector[] texCoords = new Vector[UV_SLOTS];
 
         public Vertex(Stream s, VertexDescriptor[] desc, int stride)
         {
@@ -426,7 +429,16 @@ namespace PluginSystem
                             biTangents = new Vector(HalfUtils.Unpack(Helpers.ReadUShort(s)), HalfUtils.Unpack(Helpers.ReadUShort(s)), HalfUtils.Unpack(Helpers.ReadUShort(s)), HalfUtils.Unpack(Helpers.ReadUShort(s)));
                             break;
                         case 0x621:
-                            texCoords = new Vector(HalfUtils.Unpack(Helpers.ReadUShort(s)), HalfUtils.Unpack(Helpers.ReadUShort(s)));
+                            texCoords[0] = new Vector(HalfUtils.Unpack(Helpers.ReadUShort(s)), HalfUtils.Unpack(Helpers.ReadUShort(s)));
+                            break;
+                        case 0x622:
+                            texCoords[1] = new Vector(HalfUtils.Unpack(Helpers.ReadUShort(s)), HalfUtils.Unpack(Helpers.ReadUShort(s)));
+                            break;
+                        case 0x623:
+                            texCoords[2] = new Vector(HalfUtils.Unpack(Helpers.ReadUShort(s)), HalfUtils.Unpack(Helpers.ReadUShort(s)));
+                            break;
+                        case 0x624:
+                            texCoords[3] = new Vector(HalfUtils.Unpack(Helpers.ReadUShort(s)), HalfUtils.Unpack(Helpers.ReadUShort(s)));
                             break;
                         case 0xd04:
                             boneWeights = new float[4];
@@ -443,9 +455,6 @@ namespace PluginSystem
                             break;
                         case 0xd1e:
                         case 0xd1f:
-                        case 0x622:
-                        case 0x623:
-                        case 0x624:
                         case 0xc03:
                         case 0xd05:
                             s.Seek(4, SeekOrigin.Current);

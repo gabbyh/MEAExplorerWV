@@ -34,6 +34,15 @@ namespace PluginSystem
             ExportLod(mesh, lodIndex, targetfile, scale);
         }
 
+        public void ExportAllLodsWithMorph(MeshAsset mesh, MorphStaticAsset morph, string targetdir, float scale = 1.0f, bool bake = false)
+        {
+            for (int morphLod = 0; morphLod < morph.LodCount; morphLod++)
+            {
+                string targetFile = Path.Combine(targetdir, mesh.lods[morphLod].shortName + ".obj");
+                ExportLodWithMorph(mesh, morphLod, morph, targetFile, scale, bake);
+            }
+        }
+
         ///
         private byte[] ExportAsObj(MeshAsset mesh, MeshLOD lod)
         {
@@ -70,6 +79,7 @@ namespace PluginSystem
             return verts;
         }
 
+        // TODO obj support of multiple uv maps
         private static float[] GetUVCoordsArray(List<Vertex> vertices)
         {
             float[] verts = new float[vertices.Count * 2];
@@ -78,8 +88,8 @@ namespace PluginSystem
             {
                 if (v.position.members.Length == 2)
                 {
-                    verts[index] = v.texCoords.members[0];
-                    verts[index + 1] = v.texCoords.members[1];
+                    verts[index] = v.texCoords[0].members[0];
+                    verts[index + 1] = v.texCoords[0].members[1];
                 }
                 index = index + 2;
             }

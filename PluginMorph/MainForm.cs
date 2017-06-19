@@ -521,34 +521,53 @@ namespace PluginMorph
                         float oScale = emd.ExportScale;
                         bool bakeMorphToMesh = emd.BakeMorph;
 
-                        SaveFileDialog sfd = new SaveFileDialog();
-                        sfd.Title = "Save Morph as...";
-                        if (skeleton == null) 
+                        string ext = emd.Format;
+                        IMeshExporter exporter = MeshExporter.GetExporterByExtension(ext, skeleton);
+
+                        if (emd.AllLod)
                         {
-                            sfd.Filter = "*.obj|*.obj";
-                            sfd.FileName = Path.GetFileName(currPath) + ".obj";
+                            FolderBrowserDialog fbd = new FolderBrowserDialog();
+                            fbd.Description = "Select folder where to save all LODS...";
+
+                            if (fbd.ShowDialog() == DialogResult.OK)
+                            {
+                                Cursor.Current = Cursors.WaitCursor;
+                                for (int i = 0; i < morph.LodCount; i++)
+                                {
+                                    ChunkInfo lodChunk = SearchChunk(Helpers.ByteArrayToHexString(presetMeshAsset.lods[i].chunkID));
+                                    if (lodChunk != null)
+                                    {
+                                        byte[] rawChunkBuffer = main.Host.getDataBySha1(lodChunk.sha1);
+                                        presetMeshAsset.lods[i].LoadVertexData(new MemoryStream(rawChunkBuffer));
+                                    }
+                                }
+                                exporter.ExportAllLodsWithMorph(presetMeshAsset, morph, fbd.SelectedPath, oScale, bakeMorphToMesh);
+                                MessageBox.Show("Done.");
+                                Cursor.Current = Cursors.Default;
+                            }
                         }
                         else
                         {
-                            sfd.Filter = "*.fbx|*.fbx"; /*|*.psk|*.psk";*/ // morph export not working in psk
-                            sfd.FileName = Path.GetFileName(currPath) + ".fbx";
-                        }
+                            SaveFileDialog sfd = new SaveFileDialog();
+                            sfd.Title = "Save Morph as...";
+                            sfd.Filter = "*" + ext + "|*" + ext;
+                            sfd.FileName = Path.GetFileName(currPath) + ext;
 
-                        if (sfd.ShowDialog() == DialogResult.OK)
-                        {
-                            string ext = Path.GetExtension(sfd.FileName);
-                            ChunkInfo lodChunk = SearchChunk(Helpers.ByteArrayToHexString(presetMeshAsset.lods[lod].chunkID));
-                            if (lodChunk != null)
+                            if (sfd.ShowDialog() == DialogResult.OK)
                             {
-                                byte[] rawChunkBuffer = main.Host.getDataBySha1(lodChunk.sha1);
-                                presetMeshAsset.lods[lod].LoadVertexData(new MemoryStream(rawChunkBuffer));
-
-                                IMeshExporter exporter = MeshExporter.GetExporterByExtension(ext, skeleton);
-                                exporter.ExportLodWithMorph(presetMeshAsset, lod, morph, sfd.FileName, oScale, bakeMorphToMesh);
-                                MessageBox.Show("Done.");
+                                Cursor.Current = Cursors.WaitCursor;
+                                ChunkInfo lodChunk = SearchChunk(Helpers.ByteArrayToHexString(presetMeshAsset.lods[lod].chunkID));
+                                if (lodChunk != null)
+                                {
+                                    byte[] rawChunkBuffer = main.Host.getDataBySha1(lodChunk.sha1);
+                                    presetMeshAsset.lods[lod].LoadVertexData(new MemoryStream(rawChunkBuffer));
+                                    exporter.ExportLodWithMorph(presetMeshAsset, lod, morph, sfd.FileName, oScale, bakeMorphToMesh);
+                                    MessageBox.Show("Done.");
+                                    Cursor.Current = Cursors.Default;
+                                }
+                                else MessageBox.Show("Error : chunk for this lod was not found");
                             }
-                            else MessageBox.Show("Error : chunk for this lod was not found");
-                        }                   
+                        }               
                     }
                 }
                 else

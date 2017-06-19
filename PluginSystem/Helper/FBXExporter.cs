@@ -1,6 +1,7 @@
 ﻿using System;
 using System.IO;
 using System.Collections.Generic;
+using System.Linq;
 using FBXWrapper;
 
 namespace PluginSystem
@@ -38,6 +39,16 @@ namespace PluginSystem
             else
             {
                 ExportMeshWithMorph(Skeleton, mesh, lodIndex, morph.GetVerticesForLod(lodIndex, mesh), morph.BonesMorph, targetFile);
+            }
+        }
+
+        public void ExportAllLodsWithMorph(MeshAsset mesh, MorphStaticAsset morph, string targetdir, float scale = 1.0f, bool bake = false)
+        {
+            for (int morphLod = 0; morphLod < morph.LodCount; morphLod++)
+            {
+                // TODO add name in morph for better naming
+                string targetFile = Path.Combine(targetdir, mesh.lods[morphLod].shortName + ".fbx");
+                ExportLodWithMorph(mesh, morphLod, morph, targetFile, scale, bake);
             }
         }
 
@@ -157,22 +168,40 @@ namespace PluginSystem
             FBXGeometryElementMaterial lMaterialElement = fbxMesh.CreateElementMaterial();
             lMaterialElement.SetMappingMode(FBXWrapper.MappingMode.eByPolygon);
             lMaterialElement.SetReferenceMode(FBXWrapper.ReferenceMode.eIndexToDirect);
-            FBXGeometryElementUV lUVDiffuseElement = fbxMesh.CreateElementUV(section.matName);
-            lUVDiffuseElement.SetMappingMode(FBXWrapper.MappingMode.eByControlPoint);
-            lUVDiffuseElement.SetReferenceMode(FBXWrapper.ReferenceMode.eIndexToDirect);
-            lUVDiffuseElement.SetIndexArrayCount(section.vertices.Count);
+            //FBXGeometryElementUV lUVDiffuseElement = fbxMesh.CreateElementUV(section.matName);
+
+            FBXGeometryElementUV[] lUVElements = new FBXGeometryElementUV[Vertex.UV_SLOTS];
+
+            //lUVDiffuseElement.SetMappingMode(FBXWrapper.MappingMode.eByControlPoint);
+            //lUVDiffuseElement.SetReferenceMode(FBXWrapper.ReferenceMode.eIndexToDirect);
+            //lUVDiffuseElement.SetIndexArrayCount(section.vertices.Count);
             for (int j = 0; j < section.vertices.Count; j++)
             {
                 FBXVector4 position = new FBXVector4(section.vertices[j].position.members[0] * exportScale, section.vertices[j].position.members[1] * exportScale, section.vertices[j].position.members[2] * exportScale, 0);
                 FBXVector4 normal = new FBXVector4(section.vertices[j].normals.members[0], section.vertices[j].normals.members[1], section.vertices[j].normals.members[2], section.vertices[j].normals.members[3]);
-                FBXVector4 textCoords = new FBXVector4(section.vertices[j].texCoords.members[0], (-section.vertices[j].texCoords.members[1] + 1), 0, 0);
+                //FBXVector4 textCoords = new FBXVector4(section.vertices[j].texCoords.members[0], (-section.vertices[j].texCoords.members[1] + 1), 0, 0);
                 FBXVector4 bitangent = new FBXVector4(section.vertices[j].biTangents.members[0], section.vertices[j].biTangents.members[1], section.vertices[j].biTangents.members[2], section.vertices[j].biTangents.members[3]);
                 FBXVector4 tangent = new FBXVector4(section.vertices[j].tangents.members[0], section.vertices[j].tangents.members[1], section.vertices[j].tangents.members[2], section.vertices[j].tangents.members[3]);
                 fbxMesh.SetControlPoint(j, position);
                 lGeometryElementNormal.Add(normal);
                 lGeometryElementBiNormal.Add(bitangent);
                 lGeometryElementTangent.Add(tangent);
-                lUVDiffuseElement.Add(textCoords);
+                //lUVDiffuseElement.Add(textCoords);
+                for (int uvInd = 0; uvInd < Vertex.UV_SLOTS; uvInd++)
+                {
+                    if (section.vertices[j].texCoords[uvInd] != null)
+                    {
+                        FBXVector4 textCoordsInd = new FBXVector4(section.vertices[j].texCoords[uvInd].members[0], (-section.vertices[j].texCoords[uvInd].members[1] + 1), 0, 0);
+                        if (lUVElements[uvInd] == null)
+                        {
+                            lUVElements[uvInd] = fbxMesh.CreateElementUV(section.matName + "_" + uvInd);
+                            lUVElements[uvInd].SetMappingMode(FBXWrapper.MappingMode.eByControlPoint);
+                            lUVElements[uvInd].SetReferenceMode(FBXWrapper.ReferenceMode.eDirect);
+                            //lUVElement.SetIndexArrayCount(section.vertices.Count);
+                        }
+                        lUVElements[uvInd].Add(textCoordsInd);
+                    }
+                }
             }
 
             for (int j = 0; j < section.indicies.Count; j++)
@@ -207,14 +236,10 @@ namespace PluginSystem
             lMaterialElement.SetReferenceMode(FBXWrapper.ReferenceMode.eIndexToDirect);
             int verticesCount = lod.GetLODTotalVertCount();
             fbxMesh.InitControlPoints(verticesCount);
-            List<FBXGeometryElementUV> UVs = new List<FBXGeometryElementUV>();
+            List<FBXGeometryElementUV[]> UVs = new List<FBXGeometryElementUV[]>();
             for (int i = 0; i < lod.sections.Count; i++)
             {
-                MeshLodSection section = lod.sections[i];
-                FBXGeometryElementUV lUVDiffuseElement = fbxMesh.CreateElementUV(section.matName);
-                lUVDiffuseElement.SetMappingMode(FBXWrapper.MappingMode.eByControlPoint);
-                lUVDiffuseElement.SetReferenceMode(FBXWrapper.ReferenceMode.eDirect);
-                UVs.Add(lUVDiffuseElement);
+                UVs.Add(new FBXGeometryElementUV[Vertex.UV_SLOTS]);
             }
             int VertexOffset = 0;
             for (int i = 0; i < lod.sections.Count; i++)
@@ -224,7 +249,6 @@ namespace PluginSystem
                 {
                     FBXVector4 position = new FBXVector4(section.vertices[j].position.members[0] * exportScale, section.vertices[j].position.members[1] * exportScale, section.vertices[j].position.members[2] * exportScale, 0);
                     FBXVector4 normal = new FBXVector4(section.vertices[j].normals.members[0], section.vertices[j].normals.members[1], section.vertices[j].normals.members[2], section.vertices[j].normals.members[3]);
-                    FBXVector4 textCoords = new FBXVector4(section.vertices[j].texCoords.members[0], (-section.vertices[j].texCoords.members[1] + 1), 0, 0);
                     fbxMesh.SetControlPoint(VertexOffset + j, position);
                     lGeometryElementNormal.Add(normal);
 
@@ -238,16 +262,44 @@ namespace PluginSystem
                     {
                         FBXVector4 tangent = new FBXVector4(section.vertices[j].tangents.members[0], section.vertices[j].tangents.members[1], section.vertices[j].tangents.members[2], section.vertices[j].tangents.members[3]);                        
                         lGeometryElementTangent.Add(tangent);
-                    }                   
-                    int uvI = 0;
-                    foreach (FBXGeometryElementUV uv in UVs)
-                    {
-                        if (uvI == i)
-                            uv.Add(textCoords);
-                        else
-                            uv.Add(new FBXVector4(0, 0, 0, 0));
-                        uvI++;
                     }
+
+                    // multiple UVs management
+                    for (int uvInd = 0; uvInd < Vertex.UV_SLOTS; uvInd++)
+                    {
+                        if (section.vertices[j].texCoords[uvInd] != null) 
+                        {
+                            FBXVector4 texCoords = new FBXVector4(section.vertices[j].texCoords[uvInd].members[0], (-section.vertices[j].texCoords[uvInd].members[1] + 1), 0, 0);
+                            if (UVs[i][uvInd] == null)
+                            {
+                                // if the UV layer does not already exist, we create it...
+                                UVs[i][uvInd] = fbxMesh.CreateElementUV(section.matName + "_" + uvInd);
+                                UVs[i][uvInd].SetMappingMode(FBXWrapper.MappingMode.eByControlPoint);
+                                UVs[i][uvInd].SetReferenceMode(FBXWrapper.ReferenceMode.eDirect);
+
+                                // ... and fill it with empty vectors for all previous sections vertices.
+                                for (int p = 0; p < VertexOffset + j; p++)
+                                {
+                                    UVs[i][uvInd].Add(new FBXVector4(0, 0, 0, 0));
+                                }
+                            }
+                            // and now we can add the tex coord of the current vertex we're treating.
+                            UVs[i][uvInd].Add(texCoords);
+                        }
+                    }
+
+                    // since we use direct reference mode for UV, every vertices in the mesh must be present in every UV layer
+                    // so for every UV layer created for previous section, we had an empty vector for this vertex.
+                    UVs.Where((o, oi) => oi != i).ToList().ForEach ( suv => 
+                    {
+                        for (int subuv = 0; subuv < Vertex.UV_SLOTS; subuv++) {
+                            if (suv[subuv] != null) 
+                            {
+                                suv[subuv].Add(new FBXVector4(0, 0, 0, 0));
+                            }
+                        }
+                    }
+                    );
                 }
                 for (int j = 0; j < section.indicies.Count; j++)
                 {

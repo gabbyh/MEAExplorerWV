@@ -424,8 +424,11 @@ namespace PluginMeshesWV
                                                                  (mesh.header.type == MeshType.MeshType_Skinned), selectedSkeleton, n);
             if (emsd.ShowDialog() == DialogResult.OK)
             {
-                // skeleton
-                if (skeletons[toolStripComboBox2.SelectedItem.ToString()] != emsd.Skeleton)
+                // we try to load the skeleton only if none was already selected for preview
+                // or if one was selected and it is different from the one selected in the option window
+                if (!skeletons.ContainsKey(toolStripComboBox2.SelectedItem.ToString()) ||
+                    (skeletons.ContainsKey(toolStripComboBox2.SelectedItem.ToString()) 
+                    && skeletons[toolStripComboBox2.SelectedItem.ToString()] != emsd.Skeleton))
                 {
                     string sha1 = emsd.Skeleton;
                     if (sha1 != null)
@@ -497,13 +500,16 @@ namespace PluginMeshesWV
                         MeshLodSection sec = mesh.lods[n].sections[i];
                         for (int j = 0; j < sec.vertices.Count; j++)
                         {
-                            if (sec.vertices[i].texCoords.members.Length == 2)
+                            for (int uvInd = 0; uvInd < Vertex.UV_SLOTS; uvInd++)
                             {
-                                if (flipUToolStripMenuItem.Checked)
-                                    sec.vertices[i].texCoords.members[0] = 1 - sec.vertices[i].texCoords.members[0];
-                                if (flipVToolStripMenuItem.Checked)
-                                    sec.vertices[i].texCoords.members[1] = 1 - sec.vertices[i].texCoords.members[1];
-                            }
+                                if (sec.vertices[i].texCoords[uvInd].members.Length == 2)
+                                {
+                                    if (flipUToolStripMenuItem.Checked)
+                                        sec.vertices[i].texCoords[uvInd].members[0] = 1 - sec.vertices[i].texCoords[uvInd].members[0];
+                                    if (flipVToolStripMenuItem.Checked)
+                                        sec.vertices[i].texCoords[uvInd].members[1] = 1 - sec.vertices[i].texCoords[uvInd].members[1];
+                                }
+                            }                                
                         }
                         mesh.lods[n].sections[i] = sec;
                     }

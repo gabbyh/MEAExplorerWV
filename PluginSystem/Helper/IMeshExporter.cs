@@ -12,6 +12,7 @@ namespace PluginSystem
         void ExportAllLods(MeshAsset mesh, string targetdir, float scale = 1.0f);
 
         void ExportLodWithMorph(MeshAsset mesh, int lodIndex, MorphStaticAsset morph, string targetfile, float scale = 1.0f, bool bake = false);
+        void ExportAllLodsWithMorph(MeshAsset mesh, MorphStaticAsset morph, string targetdir, float scale = 1.0f, bool bake = false);
 
     }
 }

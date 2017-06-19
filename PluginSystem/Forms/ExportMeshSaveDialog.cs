@@ -37,7 +37,7 @@ namespace PluginSystem
             LodSelectorNumeric.Value = selectedLod;
             ScaleNumeric.Value = (decimal) defaultScale;
             LoadSkeletonList(selectedskeleton, skinnedMesh);
-            LoadFormatList();
+            LoadFormatList(morphMode);
         }
 
         private void LoadSkeletonList(string selected, bool isMeshSkinned)
@@ -69,12 +69,13 @@ namespace PluginSystem
             }           
         }
 
-        private void LoadFormatList()
+        private void LoadFormatList(bool morphMode)
         {
             formatComboBox.Items.Clear();
             formatComboBox.Items.Add(".fbx");
             formatComboBox.Items.Add(".obj");
-            formatComboBox.Items.Add(".psk");
+            if (!morphMode)
+                formatComboBox.Items.Add(".psk");
 
             formatComboBox.SelectedIndex = 0;
         }
