@@ -46,8 +46,8 @@ namespace PluginSystem
         {
             for (int morphLod = 0; morphLod < morph.LodCount; morphLod++)
             {
-                // TODO add name in morph for better naming
-                string targetFile = Path.Combine(targetdir, mesh.lods[morphLod].shortName + ".fbx");
+                string fileName = string.Format("{0}_lod{1}.fbx", morph.MorphName, morphLod);
+                string targetFile = Path.Combine(targetdir, fileName);
                 ExportLodWithMorph(mesh, morphLod, morph, targetFile, scale, bake);
             }
         }

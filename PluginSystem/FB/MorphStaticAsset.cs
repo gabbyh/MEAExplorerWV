@@ -21,14 +21,16 @@ namespace PluginSystem
         public long VertexOffset;
         public long BonesOffset;
 
-        private List<List<Vector>> VerticesByLodAndSections;
-
         public List<int> SectionVerticesOffsets;
         public List<Vector> BonesMorph;
         public List<Vector> Vertices;
+
+        public string MorphName;
         
-        public MorphStaticAsset(MemoryStream s)
+        public MorphStaticAsset(MemoryStream s, string name)
         {
+            MorphName = name;
+
             Unknown1 = Helpers.ReadInt(s);
             LodCount = Helpers.ReadInt(s);
             TotalSectionCount = Helpers.ReadInt(s);

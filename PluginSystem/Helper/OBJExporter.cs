@@ -38,7 +38,8 @@ namespace PluginSystem
         {
             for (int morphLod = 0; morphLod < morph.LodCount; morphLod++)
             {
-                string targetFile = Path.Combine(targetdir, mesh.lods[morphLod].shortName + ".obj");
+                string fileName = string.Format("{0}_lod{1}.obj", morph.MorphName, morphLod);
+                string targetFile = Path.Combine(targetdir, fileName);
                 ExportLodWithMorph(mesh, morphLod, morph, targetFile, scale, bake);
             }
         }
@@ -79,7 +80,6 @@ namespace PluginSystem
             return verts;
         }
 
-        // TODO obj support of multiple uv maps
         private static float[] GetUVCoordsArray(List<Vertex> vertices)
         {
             float[] verts = new float[vertices.Count * 2];

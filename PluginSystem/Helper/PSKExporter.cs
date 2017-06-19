@@ -56,7 +56,8 @@ namespace PluginSystem
         {
             for (int morphLod = 0; morphLod < morph.LodCount; morphLod++)
             {
-                string targetFile = Path.Combine(targetdir, mesh.lods[morphLod].shortName + ".psk");
+                string fileName = string.Format("{0}_lod{1}.psk", morph.MorphName, morphLod);
+                string targetFile = Path.Combine(targetdir, fileName);
                 ExportLodWithMorph(mesh, morphLod, morph, targetFile, scale, bake);
             }
         }
@@ -90,14 +91,12 @@ namespace PluginSystem
                     Psk.points.Add(new PSKFile.PSKPoint(ConvertVector3ToPsk(p)));
                     
                     // vertex uv
-                    for (int uvInd = 0; uvInd < Vertex.UV_SLOTS; uvInd++)
-                    {
-                        if (MeshBuffer.vertices[i].texCoords[uvInd] == null) MeshBuffer.vertices[i].texCoords[uvInd] = new Vector(new float[2]);
-                        if (MeshBuffer.vertices[i].texCoords[uvInd].members.Length != 2) MeshBuffer.vertices[i].texCoords[uvInd].members = new float[2];
-                        Vector tc = new Vector(MeshBuffer.vertices[i].texCoords[uvInd].members[0], MeshBuffer.vertices[i].texCoords[uvInd].members[1]);
-                        //Psk.edges.Add(new PSKFile.PSKEdge((ushort)(offset + i), ConvertVector2ToPsk(tc), (byte)matIdx));
-                        Psk.edges.Add(new PSKFile.PSKEdge((ushort)(offset + i), ConvertVector2ToPsk(tc), (byte)uvInd));
-                    }
+                    // supports only first uv for the time being
+                    // TODO support for multiple UVs
+                    if (MeshBuffer.vertices[i].texCoords[0] == null) MeshBuffer.vertices[i].texCoords[0] = new Vector(new float[2]);
+                    if (MeshBuffer.vertices[i].texCoords[0].members.Length != 2) MeshBuffer.vertices[i].texCoords[0].members = new float[2];
+                    Vector tc = new Vector(MeshBuffer.vertices[i].texCoords[0].members[0], MeshBuffer.vertices[i].texCoords[0].members[1]);
+                    Psk.edges.Add(new PSKFile.PSKEdge((ushort)(offset + i), ConvertVector2ToPsk(tc), (byte)matIdx));
                     
                     // bones weights
                     if(MeshBuffer.vertices[i].boneWeights != null)

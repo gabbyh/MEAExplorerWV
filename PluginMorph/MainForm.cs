@@ -367,7 +367,8 @@ namespace PluginMorph
             {
                 hb1.ByteProvider = new DynamicByteProvider(rawEbxBuffer);
                 hb2.ByteProvider = new DynamicByteProvider(rawResBuffer);
-                var morph = new MorphStaticExtended(new MemoryStream(rawResBuffer), new MemoryStream(rawEbxBuffer));
+                string morphName = Path.GetFileName(currPath);
+                var morph = new MorphStaticExtended(new MemoryStream(rawResBuffer), new MemoryStream(rawEbxBuffer), morphName);
                 MorphDetailsTB.Text = morph.ToJson();
                 tv3.Nodes.Clear();
                 tv3.Nodes.Add(JsonToTree.ToNode(morph.ToJson(), "MorphStatic"));
@@ -497,18 +498,20 @@ namespace PluginMorph
         {
             if (rawEbxBuffer != null && rawResBuffer != null)
             {
-                var morph = new MorphStaticExtended(new MemoryStream(rawResBuffer), new MemoryStream(rawEbxBuffer));
+                string morphName = Path.GetFileName(currPath);
+                var morph = new MorphStaticExtended(new MemoryStream(rawResBuffer), new MemoryStream(rawEbxBuffer), morphName);           
 
-                // look for preset Mesh
-                DataInfo presetMeshRes = SearchItemRES(morph.PresetMesh);
-                if (presetMeshRes != null)
+                ExportMeshSaveDialog emd = new ExportMeshSaveDialog(morph.LodCount, 100f, true);
+                if (emd.ShowDialog() == System.Windows.Forms.DialogResult.OK)
                 {
-                    byte[] meshData = main.Host.getDataBySha1(presetMeshRes.sha1);
-                    MeshAsset presetMeshAsset = new MeshAsset(new MemoryStream(meshData));
-
-                    ExportMeshSaveDialog emd = new ExportMeshSaveDialog(morph.LodCount, 100f, true);
-                    if (emd.ShowDialog() == System.Windows.Forms.DialogResult.OK)
+                    Cursor.Current = Cursors.WaitCursor;
+                    // look for preset Mesh
+                    DataInfo presetMeshRes = SearchItemRES(morph.PresetMesh);
+                    if (presetMeshRes != null)
                     {
+                        byte[] meshData = main.Host.getDataBySha1(presetMeshRes.sha1);
+                        MeshAsset presetMeshAsset = new MeshAsset(new MemoryStream(meshData));
+                        
                         SkeletonAsset skeleton = null;
                         int lod = emd.Lod;
                         string sha1 = emd.Skeleton;
@@ -523,7 +526,7 @@ namespace PluginMorph
 
                         string ext = emd.Format;
                         IMeshExporter exporter = MeshExporter.GetExporterByExtension(ext, skeleton);
-
+                        Cursor.Current = Cursors.Default;
                         if (emd.AllLod)
                         {
                             FolderBrowserDialog fbd = new FolderBrowserDialog();
@@ -567,12 +570,13 @@ namespace PluginMorph
                                 }
                                 else MessageBox.Show("Error : chunk for this lod was not found");
                             }
-                        }               
+                        }
+                        Cursor.Current = Cursors.Default;
                     }
-                }
-                else
-                {
-                    MessageBox.Show("Error : Res data corresponding to preset mesh " + morph.PresetMesh + " not found.");
+                    else
+                    {
+                        MessageBox.Show("Error : Res data corresponding to preset mesh " + morph.PresetMesh + " not found.");
+                    }
                 }
             }
         }
